@@ -1,0 +1,24 @@
+: '
+for testing purposes use 500-1000 permutations
+for publication purposes use 5000 permutations
+for two sample ttest use Glm_gui in FSL to create design matrix files
+'
+#create 4D file of all input data
+fslmerge -a <output> <file1 file2 .......>
+
+#A typical simple call to randomise uses the following syntax:
+randomise -i <4D_input_data> -o <output_rootname> -d design.mat -t design.con -m <mask_image> -n 500 -D -T
+
+#one sample t-test (greater than zero)
+randomise -i <4D_input_data> -m mask -o <output_rootname> -1 -T -n 1000
+
+#If you have fewer than 20 subjects (approx. 20 DF), then you will usually see an increase in power by using variance smoothing, as in
+randomise -i <4D_input_data> -o  <output_rootname> -1 -v 5 -T
+
+#one sample t-test (less than zero)
+#first use fslmatchs to multiply positive 4D file by -1
+fslmaths <4D_input_data> -mul -1 neg_<output_rootname>
+randomise -i neg_<4D_input_data> -m mask -o <output_rootname> -1 -T -n 1000
+
+#two sample t-test
+randomise -i <4D_input_data> -o <output_rootname> -d design.mat -t design.con -T -n 1000
