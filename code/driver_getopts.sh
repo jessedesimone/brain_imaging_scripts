@@ -39,6 +39,6 @@ gen_error_msg="\
 
 #=======handle options========
 if [ "$aflag" ]; then
-    <do this>
+    source <path/to/script>
 fi
 
