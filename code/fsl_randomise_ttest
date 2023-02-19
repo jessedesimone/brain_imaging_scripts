@@ -1,7 +1,6 @@
 : '
-for testing purposes use 500-1000 permutations
-for publication purposes use 5000 permutations
-for two sample ttest use Glm_gui in FSL to create design matrix files
+Using FSL randomise with threshold-free cluster enhancement
+See https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Randomise/UserGuide
 '
 #create 4D file of all input data
 fslmerge -a <output> <file1 file2 .......>
