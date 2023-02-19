@@ -31,7 +31,6 @@ echo "3dttest++ \\" >> $cmd_file
 echo "-prefix '$result_file' \\" >> $cmd_file
 echo "-Clustsim \\" >> $cmd_file
 echo "-mask '<mask file>' \\" >> $cmd_file
-#echo "-paired \\" >> $cmd_file                                 #uncomment if paired t-test
 #echo "-covariates '<covariates file>' \\">>$cmd_file           #uncomment if using covariates
 echo "-setA $tag \\" >> $cmd_file
 
