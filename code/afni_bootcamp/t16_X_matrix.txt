@@ -1,0 +1,223 @@
+
+Processing block: regress - specific to generation of the X-matrix
+
+
+Here we will discuss how the X-matrix is generated from the 3dDeconvolve
+command.
+
+Background:
+
+   Recall that our regression model is made of a few simple parts:
+
+      1. a polynomial baseline, meant to account for the mean of the scan
+         and for slow baseline drifts
+
+      2. responses to stimuli of interest
+
+      3. motion parameters, meant to account for residual motion effects that
+         3dvolreg cannot perfectly correct
+
+   Responses to stimuli of interest are generated internally in 3dDeconvolve.
+   We provide the stimulus times (such as from AV1_vis.txt) and a model (such
+   as BLOCK(20,1)), and 3dDeconvolve generates the regressors (only 1 per
+   stimulus class, in this case).
+
+----------------------------------------------------------------------
+
+The proc.FT script (3dDeconvolve command):
+
+      3dDeconvolve -input pb04.$subj.r??.scale+orig.HEAD                   \
+          -polort 3                                                        \
+          -num_stimts 8                                                    \
+          -stim_times 1 stimuli/AV1_vis.txt 'BLOCK(20,1)'                  \
+          -stim_label 1 Vrel                                               \
+          -stim_times 2 stimuli/AV2_aud.txt 'BLOCK(20,1)'                  \
+          -stim_label 2 Arel                                               \
+          -stim_file 3 dfile.rall.1D'[0]' -stim_base 3 -stim_label 3 roll  \
+          -stim_file 4 dfile.rall.1D'[1]' -stim_base 4 -stim_label 4 pitch \
+          -stim_file 5 dfile.rall.1D'[2]' -stim_base 5 -stim_label 5 yaw   \
+          -stim_file 6 dfile.rall.1D'[3]' -stim_base 6 -stim_label 6 dS    \
+          -stim_file 7 dfile.rall.1D'[4]' -stim_base 7 -stim_label 7 dL    \
+          -stim_file 8 dfile.rall.1D'[5]' -stim_base 8 -stim_label 8 dP    \
+          -gltsym 'SYM: Vrel -Arel'                                        \
+          -glt_label 1 V-A                                                 \
+          -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                          \
+          -fitts fitts.$subj                                               \
+          -errts errts.$subj                                               \
+          -bucket stats.$subj
+
+Understanding the X-matrix from the regressors:
+
+    0. X-matrix
+
+        First, let us view the X-matrix as a whole, and then dissect it in
+        correspondence with the 3dDeconvolve command.  Use 1dplot to view it.
+
+     ** Remember that the '%' is used to denote a Unix prompt, and is not part
+        of the actual command.
+
+                % 1dplot X.xmat.1D
+
+        The plots are ordered from the bottom up.  One can see the 12 smooth
+        polynomial curves (3 sets of 4) on the bottom.  Next are the 2 curves
+        of interest, having many smooth bumps each.  And the top 6 curves are
+        the motion parameters (per-TR registration shifts in the A/P, L/R and
+        I/S directions, as well as the 3 rotations about the major axes).  See
+        the '-stim_label' options for a reminder of the exact order.
+
+        Close this when you are finished (click 'Done' or the 'X', or type a
+        'q' in the image window).
+
+    1. polynomial baseline
+
+        Recall that listing pb04.$subj.r??.scale+orig.HEAD as the input is 
+        actually specifying 3 datasets on the command line (expanded by the
+        shell _before_ 3dDeconvolve sees the wildcard expression):
+
+                pb04.FT.r01.scale+orig.HEAD
+                pb04.FT.r02.scale+orig.HEAD
+                pb04.FT.r03.scale+orig.HEAD
+
+        So there are 3 runs of input data.
+
+        The '-polort 3' option tells 3dDeconvolve to use a cubic polynomial to
+        model the baseline in each run.  The 3rd degree polynomial requires 4
+        basis functions (constant, linear, 2nd degree, 3rd degree), meaning
+        there will be 4 regressors in each of 3 runs for modeling the baseline.
+        Those are the first 12 columns of the X-matrix.
+
+        Plot just the first 12 columns of the X-matrix to see the polynomial
+        regressors.  Note how each regressor is specific to only 1 run.
+
+                % 1dplot X.xmat.1D'[0..11]'
+
+        The bottom 4 curves are for run 1, then come run 2 and run 3, above.
+
+    2. regressors of interest (visual-reliable and audio-reliable)
+
+        Recall that the file AV1_vis.txt was copied into the FT.results/stimuli
+        directory at the top of the processing script.  The file contains:
+
+           60  90 120 180 240
+          120 150 180 210 270
+            0  60 120 150 240
+
+        This shows the onsets for the visual-reliable stimuli.  The stim_times
+        file shows just the onsets, while the basis function is provided on the
+        command line as 'BLOCK(20,1)'.
+
+        For each stimulus time, such as 60 seconds into the first run (the
+        first entry on the first line), 3dDeconvolve will convolve a 20 second
+        box car function with an incomplete gamma variate function to produce a
+        BOLD response curve which lasts about 35 seconds.  Note that the tail
+        of each response curve (the last 5 seconds) will overlap with the
+        subsequent event, since they are separated by only 30 seconds.
+
+        3dDeconvolve will generate a single ideal time series as the sum of the
+        35 second response curves starting at each of those 15 stimulus times
+        (5 per run).
+
+        View this as column 12 of the X-matrix (columns 0-11 are baseline).
+
+                % 1dplot X.xmat.1D'[12]'
+
+        Or maybe look at both the visual and auditory regressors at once.
+    
+                % 1dplot X.xmat.1D'[12,13]'
+
+        Recall that these plots are per-TR curves.  There are 150 TRs per run
+        and 3 runs, giving 450 TRs in total.
+
+        So consider again the visual stimulus at 60 seconds into the first run.
+        Since the TR is 2 seconds, that stimulus occurs after the first 30 TRs
+        (after 0..29).  So starting at TR index 30, we see the black curve
+        begin to rise as a result of this stimulus.  The curve lasts for ~35
+        seconds, which is 17 or 18 TRs.  The response would last until TR 48,
+        but we do not quite see that because the next stimulus starts at TR 45
+        (90 seconds into the run).  The curve does not return to 0 because the
+        BOLD responses overlap.
+
+        The second run starts at TR 150.  We see there is no visual stimulus
+        until 120 seconds into the second run, which is 60 TRs.  So the first
+        stimulus of the second run occurs at TR 210 (150+60).  Indeed, that is
+        where the black curve first begins to rise after a long period at 0.
+
+    3. motion regressors
+
+        We have seen that 3dDeconvolve created both the polynomial baseline
+        regressors (based on the polort and the number of runs) and the 
+        regressors of interest (based on the stimulus timing files that we
+        provided).
+
+        But the motion parameters are handed to 3dDeconvolve "as they are",
+        using the -stim_file option.  With -stim_times we tell 3dDeconvolve
+        what the stimulus times are (and the basis functions), and it makes 
+        the regressors.  But using -stim_file, we are giving 3dDeconvolve the
+        actual regressors.  They go directly into the X-matrix.
+
+        First plot the original motion parameters, as created by 3dvolreg.
+
+                % 1dplot dfile.rall.1D
+
+        Now compare that to what we see in the X-matrix.  Remember that the
+        first 12+2 columns of the X-matrix are for polynomial baseline and the
+        visual and audio regressors.  So skip the first 14 columns (0-13) and
+        plot the last 6.
+
+                % 1dplot X.xmat.1D'[14..19]'
+
+        Since 19 is the last column, we could have been lazy and used '$':
+
+                % 1dplot X.xmat.1D'[14..$]'
+
+        We see these are the exact same curves as those in dfile.rall.1D.
+
+    4. Again, look at the entire X-matrix at once.  Note the 12 polynomial
+       baseline curves, the 2 curves of interest and the 6 motion curves.
+       There are 20 columns (regressors) in the X-matrix.
+
+                % 1dplot X.xmat.1D
+
+       This is our model.  This is what we expect to see in the data.  The goal
+       of 3dDeconvolve is the same at each voxel in the dataset:  find the 20
+       beta weights, one for each regressor, such that the sum of each beta
+       weight times its corresponding regressor is a model fit that is as close
+       to the MRI signal as possible.
+
+       That describes the model fit at each voxel.  There are 12 polynomial
+       betas, 2 betas of interest and 6 motion betas.  The sum of each betas
+       times its regressor is the fit time series at that voxel.
+
+    5. Understanding the output datasets.
+
+       There were 3 input datasets (the 3 scaled runs).  After 3dDeconvolve
+       runs, the processing script concatenates these into a single all_runs
+       dataset for easily viewing all runs at once.  So for now, consider the
+       all_runs dataset as the input.
+
+       Input: all_runs
+
+       One output is from the -fitts option, the fitts dataset.  This is the
+       time series dataset that has the best model fit at each voxel, as noted
+       in the previous step.  Each time series is some linear combination of
+       the 20 regressors.
+
+       The other time series output is the errts dataset.  This is the residual
+       time series.  It is all_runs minus fitts.  It is the part of each time
+       series that was not fit by our model (20 regressors) at all.  One could
+       create this from all runs and fitts:
+
+                % 3dcalc -a all_runs.$subj+orig -b fitts.$subj+orig \
+                         -expr 'a-b' -prefix errts
+
+       We do not need to run that command, since the -errts option is telling
+       3dDeconvolve to do it for us.
+
+       The final dataset that is output is the -bucket dataset, stats.  The
+       output bucket consists of the Full-F statistic, along with all of our
+       betas and requested statistics, in order.  By default, the polynomial
+       baseline betas and statistics are not included (that would require the
+       -bout option).
+
+       Output: fitts, errts, stats
+

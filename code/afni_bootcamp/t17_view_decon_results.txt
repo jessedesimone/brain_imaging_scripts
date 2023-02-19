@@ -1,0 +1,240 @@
+
+Processing block: regress - viewing the results with the afni GUI
+
+Background:
+
+   At this point, 3dDeconvolve has been run, which is to say that our model has
+   been fit to the data using linear regression.  We have examined the X-matrix
+   written to X.xmat.1D.
+
+   The output dataset stats.FT+orig has the beta weights and statistics for the
+   regressors of interest.  Since no -bout option was given to 3dDeconvolve, no
+   baseline regressors (polort and motion) are in the stats bucket.  This
+   dataset contains 10 sub-bricks.
+
+   Note that many sub-brick labels have #0 in them, to indicate regressor index
+   0.  If we had used TENT(0,16,9) to make 9 TENT regressors, then the _Coef
+   labels would have index #0...#8 for the 9 beta weights.  These indices and
+   labels can be seen in the afni GUI, by choosing sub-bricks of the stats
+   dataset as an Overlay, or by running 3dinfo.  Note that -verb is needed to
+   list more than the first few sub-bricks.
+
+        % 3dinfo -verb stats.FT+orig
+
+    index   label               meaning
+    -----   ---------------     -------------------------------------------
+        0 : Full_Fstat          F-stat for significance of model vs baseline
+                                (baseline is polort and motion in this example)
+        1 : Vrel#0_Coef         the beta weight for the Vrel stim class
+        2 : Vrel#0_Tstat        t-stat for significance of Vrel (sqrt(F-stat))
+        3 : Vrel#0_Fstat        F-stat for significance of Vrel
+                                (fraction of variance explained by including
+                                Vrel in the model)
+        4 : Arel#0_Coef         the beta weight for the Arel stim class
+        5 : Arel#0_Tstat        t-stat for significance of Arel
+        6 : Arel#0_Fstat        F-stat for significance of Arel
+        7 : V-A_GLT#0_Coef      the contrast magnitude of Vrel-Arel
+        8 : V-A_GLT#0_Tstat     t-stat for significance of V-A_GLT
+        9 : V-A_GLT#0_Fstat     F-stat for significance of V-A_GLT
+
+===========================================================================
+
+View the results in the afni GUI:
+
+   Use controller [A] along the top of the screen to view some of the results.
+   Set the underlay to the anatomical dataset FT_anat+orig and the overlay to
+   be stats.FT+orig.
+
+        - in controller [A], set Underlay to FT_anat
+        - [A] set Overlay to stats.FT
+        - [A] close the graph window and open multiple image windows
+
+   First, use the Full-F to find significant voxels.  This is a common initial
+   step (that is not so useful here because the results are extremely strong).
+   Do not worry about proper thresholding at this point, just understand the
+   results and find some "good" voxels.
+
+   Set the OLay and Thr sub-bricks of the Overlay dataset to the full F-stat,
+   raise the threshold high enough so that the picture clears up, and cluster
+   those results.
+
+        - [A] set OLay sub-brick to #0, the Full_Fstat
+        - [A] set Thr  sub-brick to #0, the Full_Fstat
+        - [A] set the threshold slider bar to 25.00
+            - in order to reach 25, set the "Power-of-10" drop down menu to 2
+              (under the threshold slider, next to '**')
+            - since 10^2 is 100, the threshold range is now 0..100
+        - [A] jump-to-xyz: 10 53.3 11.8
+
+   --------------------
+
+   Understanding what we see, thresholding...
+
+   The threshold is set to 25.0, and the threshold is based on the full F-stat.
+   At the current voxel location (10, 53.3, 11.8), we can see the threshold
+   value is 44.97 by looking in the lower right corner of the main GUI.  We see
+   Thr=44.97 (as well as OLay=44.97, but ignore that for now).
+
+   Since 44.97 is greater than our threshold of 25.00, we see color at this
+   voxel.  That is the only decision made in thresholding a dataset: each voxel
+   that exceeds the threshold (according to the Thr sub-brick) gets colored,
+   any that do not exceed the threshold do not get colored.
+
+   Jump around the dataset a bit.  Look at colored and uncolored voxels, and
+   how each voxel's Thr value compares to the threshold.  When you are done,
+   jump back to this voxel.
+
+        - [A] jump-to-xyz: 10 53.3 11.8
+
+   Just to make it clear, now raise the threshold to 75.  Of course our Thr
+   value of 44.97 does not change, so now this voxel is no longer colored.
+
+   --------------------
+
+   Understanding what we see, coloring...
+
+   Since our current voxel is no longer surviving thresholding, jump to a new
+   voxel, at coordinates 36.0, 17.6, 11.8.
+
+        - [A] jump-to-xyz: 36 18 12
+
+   This voxel has a Thr value of 606.7, so it is colored.  Now let us think
+   about coloring.
+
+   The color of any voxel that survives thresholding is based on where the OLay
+   value falls on the 'Inten' color bar.  Note that by default, the range of
+   the Inten color bar shows -1.0 to 1.0 (which can be changed to 0 to 1 via
+   the 'Pos' (positive only) toggle button).  This range is scaled by either
+   the 'autoRange' value (if selected) or the user-specified value below it.
+
+   In this case, we see the ranges of the 3 sub-bricks in question:
+
+        ULay (anatomical underlay)      : 0 ... 4111
+        OLay (stats #0, full-F)         : 0 ... 930.9304
+        Thr  (stats #0, full-F)         : 0 ... 930.9304
+
+   Since the maximum value in this OLay volume is 931, that is what autoRange
+   is set to.  This is the scaling on the Inten color bar, meaning the colors
+   show this:
+
+         931 (or higher) : red, at the very top
+         450             : yellow (halfway from middle green to top red)
+           0             : green, in middle
+        -450             : light blue (halfway from middle down to bottom blue)
+        -931 (or lower)  : dark blue, at the very bottom
+
+   At the current voxel, the Thr value is 606.7 and the color is orange.  Put
+   the mouse cursor over the orange part on the colorbar that corresponds to
+   this voxel's orange and right-click.  A little window opens up that displays
+   the value corresponding to this color.
+
+   Since these are F-stats, they are non-negative.  Click the "Pos" toggle
+   button below the color bar so that the Inten range goes from 0 to 1 (instead
+   of -1 to 1).
+
+        - main controller: set Pos
+
+   Now the image is much more blue.  Dark blue now corresponds to 0, green to
+   460 (using right-click on the green part of the color bar), and Red still
+   corresponds to 931.  Nothing has changed in the data, we have just changed
+   how the colors are displayed.  At the current voxel, the color changed from
+   orange to a yellow-green with the new scaling.
+
+   ----------------------------------------------------------------------
+
+   Now let us examine Vrel, one of the 2 regressors of interest.
+
+   Still viewing the stats.FT Overlay, change the OLay sub-brick to #1, the
+   Vrel coefficient (beta weight) and the Thr sub-brick to #2, the t-stat.
+   Recall that the Vrel t-stat shows the significance of the Vrel beta weight
+   (additional variance explained by including it in the model).
+
+        - main controller: set OLay to sub-brick #1: Vrel#0_Coef
+        - main controller: set Thr  to sub-brick #2: Vrel#0_Tstat
+
+   Fantastic.  And now we see ... nothing.
+
+   Note that the threshold is still at 75, but the range of t-stats (our Thr
+   sub-brick) is from -25 to 37.4.  So nothing will survive a cutoff of 75.
+   Set the new threshold to 15.0 and turn off the "Pos" (positive only) toggle
+   button.
+
+        - main controller: set threshold to 15.00
+        - main controller: toggle off "Pos?" (so color range is -1 to 1 again)
+
+   At our current location (still 36, 18, 12), the t-stat is 25.25.  Again,
+   since this is above the threshold of 15, this voxel is colored.  The color
+   is green here because the Vrel beta weight is 2.528 (percent change), and
+   the color Inten bar is -1 to 1, autoRange scaled by 56.137 (the maximum
+   absolute value in the OLay sub-brick).
+
+   But basically all of the color is green (i.e. close to zero).  Recall that
+   we get very large percent changes outside the brain (while still large at
+   the edges).  That peak of -56 percent change is clearly not possible as a
+   BOLD effect within the brain, so it makes no sense to base the color scale
+   on it.  Change the color scaling from 56.14 to 5.0.
+
+        - main controller: toggle off autoRange
+        - main controller: change the range (from 10000?) to 5.0
+
+   Now our voxel of 2.5 shows a yellow color (halfway from green to red on the
+   color bar), and we do see some red in the axial image, in the visual area.
+
+   ----------------------------------------------------------------------
+
+   Just for comparison, let us briefly look at the results for Arel (audio
+   reliable), as well.  Change the OLay sub-brick to the beta weight for Arel
+   and the Thr sub-brick to the corresponding t-stat.
+   
+        - main controller: set OLay to sub-brick #4: Arel#0_Coef
+        - main controller: set Thr  to sub-brick #5: Arel#0_Tstat
+
+   At this same voxel (still 36, 18, 12) we see the beta weight is 3.357 and
+   the t-stat is 33.8.  Since the t-stat is greater than 15, this voxel is
+   colored.  And what color does it get?  The color range is still 5, so 3.3
+   is 2/3 of the way from green to red.  So the OLay value of 3.36 is colored
+   orange.
+
+   ----------------------------------------------------------------------
+
+   What about the V-A GLT?
+
+   Recall that at this voxel, the Vrel beta is 2.528 and the Arel beta is
+   3.357.  So Vrel-Arel should be 2.528-3.357, or -0.829.  Change sub-bricks
+   to verify this.
+
+        - main controller: set OLay to sub-brick #7: V-A_GLT#0_Coef
+        - main controller: set Thr  to sub-brick #8: V-A_GLT#0_Tstat
+
+   We see that V-A is indeed -0.829 here, with a t-stat of -8.66.  This voxel
+   is not colored because our threshold is still set so high at t=15.0.  Change
+   the threshold to 7.0, which is still very high (p=10^-11).
+
+   Let us find another voxel to look at, one where the the contrast is even
+   stronger, but still in the same axial slice, and still negative (just for
+   kicks, negative means that the response to the audio-reliable stimulus was
+   stronger than the response to the visual-reliable stimulus).  Change the
+   OLay sub-brick to #8 (like the Thr sub-brick), so that we are coloring the
+   voxels based on the t-stat of the V-A contrast.  Also, turn autoRange back
+   on, so that we are not limited to +/-5 in the coloring.
+
+        - main controller: set OLay to sub-brick #8: V-A_GLT#0_Tstat
+        - main controller: toggle on autoRange (so color range is 15.977)
+
+   Now that voxels are colored based on the test significance, let us go to one
+   colored darker blue, just a little more lateral and anterior from here.
+
+        - axial [A] jump-to-xyz: 52 3.6 12
+
+   If we briefly change the OLay sub-brick between sub-bricks #1, #4 and #7,
+   we can see that at this voxel:
+
+              Vrel beta = 2.325
+              Arel beta = 3.403
+              V-A contr = -1.08  (2.325 - 3.403)
+
+        - main controller: toggle off autoRange (set color range back to 5)
+        - main controller: set OLay to sub-brick #1  (and look at OLay value)
+        - main controller: set OLay to sub-brick #4  (and look at OLay value)
+        - main controller: set OLay to sub-brick #7  (and look at OLay value)
+

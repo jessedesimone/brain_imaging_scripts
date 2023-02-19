@@ -1,0 +1,279 @@
+
+Processing block: volreg
+
+In this step each volume is registered with the "base" volume (the third volume
+of the first run).
+
+Background:
+
+   Since the scanning voxels are fixed in space (basically), subject motion
+   means that any given dataset voxel might not be in the same brain location
+   across time.  The goal is to "correct" this problem, as much as possible.
+   Note that subject motion is generally the biggest source of "noise" in the
+   data.
+
+   Recall that we instructed the subject to move as little as possible (this
+   is supposed to be "our" experiment, including the reader), and gave a gentle
+   reminder between each run.  But still, subjects always move.
+
+   Since the anatomical dataset was acquired just before the first EPI run, the
+   beginning of run 1 should start in good alignment with the anatomical data
+   (assuming the subject did not move between those acquisitions).
+
+   --> See the 'advanced' section for how to avoid this assumption.
+
+   By aligning every volume to the third volume of the first run, the volumes
+   should "be" unmoving over time.  Importantly, this means that each voxel
+   represents the same location over time.
+
+   -----
+
+   Note that 3dvolreg performs "rigid body" alignment.  There are 6 alignment
+   parameters: roll, pitch, yaw, dS, dL and dP,   These allow both rotations
+   and shifts about or along the 3 cardinal axes.
+
+   Roll, pitch and yaw are airplane terms, with pitch being the most common (it
+   is a nodding motion and is physically most easy for subjects to do).  The
+   shifts (dS, dL and dP) mean shifts in the superior to inferior direction,
+   in the left to right direction and the posterior to anterior direction.
+
+   To align one volume to the base, it could be necessary to perform a pitch of
+   1.2 degrees, a left shift of 0.2 mm and an anterior shift of 0.5 mm.  This
+   example would lead to parameters of:
+
+        0.0  1.2  0.0  0.0  0.2  -0.5
+
+The proc.FT script:
+
+      ----------------------------------------------------------------------
+      # align each dset to base volume
+      foreach run ( $runs )
+          # register each volume to the base
+          3dvolreg -verbose -zpad 1 -base pb01.$subj.r01.tshift+orig'[2]' \
+                   -1Dfile dfile.r$run.1D -prefix pb02.$subj.r$run.volreg \
+                   -cubic                                                 \
+                   pb01.$subj.r$run.tshift+orig
+      end
+
+      # make a single file of registration params
+      cat dfile.r??.1D > dfile.rall.1D
+      ----------------------------------------------------------------------
+
+   For each run we run 3dvolreg with the same base, the third volume of the
+   first run (pb01.FT.r01.tshift+orig'[2]').  Again, note that every volume of
+   every run is aligned to the same base.  These options are applied:
+
+        -verbose                : output processing information to the screen
+        -1Dfile dfile.r$run.1D  : write the motion parameters for the current
+                                  run to dfile.r$run.1D
+        -prefix pb02...volreg   : name of output dataset
+        -cubic                  : use cubic interpolation to resample data
+
+   The input dataset is pb01.$subj.r$run.tshift+orig (from tshift block) and
+   the output prefix is pb02.$subj.r$run.volreg (as this is the volreg block).
+
+   -----
+
+   After the foreach loop, there will be a 'dfile' for each run (dfile.r01.1D,
+   dfile.r02.1D, dfile.r03.1D).  These are catenated into one long file over
+   all 3 runs.  It is this catenated set of columns that will be used as
+   regressors (of no interest) in 3dDeconvolve, to account for residual motion
+   effects.
+
+   Let us look at these motion parameters to see how much the subject moved.
+   First look at them as text:
+
+        % less dfile.rall.1D
+
+   Hmmmm, it is just 6 columns of numbers in text, making it difficult to spot
+   motion.  So look at it a different way, by plotting the parameters as a set
+   of 6 time series.
+
+   Note that 1dplot knows what the format of volreg output is, so there is a
+   -volreg option that can be used to label the axes appropriately.
+
+        % 1dplot -volreg dfile.rall.1D
+   
+   This shows that there was very little subject motion (as var as volume
+   registration could detect), aside from the big spike at TR #42.  Recall
+   that there was some sort of motion at TR #266 (discovered by 3dToutcount).
+   We see only a very small spike in the motion plots there.
+
+The script continues with:
+
+      ------------------------------------------------------------
+      # compute motion magnitude time series: the Euclidean norm
+      # (sqrt(sum squares)) of the motion parameter derivatives
+      1d_tool.py -infile dfile.rall.1D -set_nruns 3              \
+                 -derivative  -collapse_cols euclidean_norm      \
+                 -write motion_${subj}_enorm.1D
+      ------------------------------------------------------------
+
+   Here the motion parameters are turned into a single time series that is
+   intended to show per-TR movement.
+
+   There are 2 small points to make.
+
+   1. If the subject moves at one particular TR, the motion parameters should
+      differ from those at the previous TR by the amount of motion.  So the
+      temporal derivative (difference between this TR and the previous one)
+      should give an idea of motion at this TR.
+   2. The six parameters are all of similar magnitude.  Note that a 1 degree
+      rotation means 0 mm movement in the center of the dataset and perhaps
+      1.75 mm at the edge of an adult brain.  So it is reasonable to say that
+      a 1 degree rotation is similar to a 1 mm shift.
+
+   These 2 points are applied in the 1d_tool.py command.  First the temporal
+   derivative is taken of each of the 6 columns, then at each TR, the 6 
+   derivative parameters are reduced to 1 via the Euclidean norm (square root
+   of the sum of squares).
+
+   This results in a single time series that to some degree summarizes the 6
+   motion parameters.  Again, we could look at this text file in an editor or
+   with less, but it is more helpful to plot it.
+
+        % 1dplot motion_FT_enorm.1D
+
+   There is a pair of spikes around TR 42, with the next largest spike at 266
+   and a few just a bit smaller than that one.
+
+===========================================================================
+
+View the results in the afni GUI:
+
+   At this point, controller [A] (the windows across the top of the screen)
+   should be showing dataset pb00.FT.r01.tcat+orig and controller [B] should
+   be showing pb01.FT.r01.tshift.  We should still be at xyz coordinates
+   (19.3 78 -5.7).
+
+   Since this volreg block takes as input pb01.FT.r01.tshift and creates as
+   output pb02.FT.r01.volreg, leave controller [B] as it is (tshift), and
+   change [A] to be the volreg output.
+
+        - in controller [A], switch Underlay to pb02.FT.r01.volreg
+
+   Notice that at this location there was the big spike at TR #42 in the
+   tshift dataset of controller [B], but that the spike is gone in the volreg
+   output of controller [A].  At some voxels the spike may disappear, at some
+   it may still be there, and at others it may not have been there to begin
+   with but is there now.
+
+   Keep in mind a few basic points:
+
+       ** voxels locations will refer to slightly different brain locations 
+          after volume registration
+        - in general, motion cannot be perfectly corrected
+        - TRs with large motion will likely corrupt results, so they are
+          usually censored out (see "Advanced 1")
+        - motion occurs differently across slices, since even "sudden" motion
+          generally takes many slices acquisitions worth of time to happen
+          (i.e. each slice is shifted in a different way)
+
+   Explore just a little more, looking at coordinate (2.8 80.7 -5.6).
+
+        - in afni: jump-to-xyz (2.8 80.7 -5.6)
+
+   Looking at the 9 voxels in the graph window, we see different results.  Note
+   that the spikes affect the scaling within the graph windows.
+
+        - the voxel to the right of center went from a huge spike to a tiny one
+        - some voxels did not change much
+        - the center, lower left and upper left voxels had a large increase in
+          the spike size
+
+   Before moving on, jump back to the main voxel of interest.
+
+        - in afni: jump-to-xyz (19.3 78 -5.7)
+
+---------------------------------------------------------------------------
+
+Advanced 1:
+
+   The 'enorm' file can be used for censoring TRs due to motion.  For example,
+   consider the "advanced" afni_proc.py script, s02.ap.align.  It applies the
+   option:
+
+              -regress_censor_motion 0.3
+
+   The result is censoring any TR with a motion value above 0.3.  Note that
+   unless the user specifies otherwise, the prior TRs are censored as well,
+   since it is not known in which TR the motion actually happened.
+
+   To see exactly which TRs would be censored, add to the 1dplot display a
+   horizontal line at 0.3 (across all 450 TRs):
+
+             % 1dplot -one '1D: 450@0.3' motion_FT_enorm.1D
+
+   Since motion corrupts our results, the goal would be to choose a threshold
+   that would censor the problematic TRs without censoring enough to bias our
+   results in any way.
+
+   It seems very sensible to apply the same threshold across all subjects.
+   Note that some subject groups may be much more prone to motion than others.
+   For normal humans 0.3 might work well.  But for children, monkeys, drug
+   studies, etc., it might be far too small.
+
+---------------------------------------------------------------------------
+
+Advanced 2:
+
+   Note that the s02.ap.align script applies the -volreg_tlrc_warp and
+   -volreg_align_e2a options (to accompany the addition of the 'tlrc' and
+   'align' processing blocks).
+
+   In that example, the 'tlrc' block adds an @auto_tlrc command to the
+   processing script (to warp the anatomy to the Talairach template).  The
+   -volreg_tlrc_warp tells afni_proc.py to apply that transformation to the
+   EPI data at the volreg step.  So the output of the 'volreg' block will be
+   in Talairach space (aligned to TT_N27+tlrc).
+
+   The 'align' block aligns the anatomy to the EPI.  However, since the
+   -volreg_align_e2a option was applied, the aligned anatomy is actually
+   garbage.  What matters is the transformation.
+
+   The inverse of the anat to EPI transformation is applied to the EPI data in
+   the volreg block so that the EPI data is warped to align with the anatomical.
+
+   ---
+
+   On top of this, because the EPI dataset will be output in a larger dataset
+   box (probably), additional care must be taken.  The EPI box shifts as the
+   subject moved, resulting in the edges of the mapped volume corresponding to
+   subject motion.  So some very edge voxels can have valid data for a while,
+   then no data (zeros) then data again, etc.
+
+   Such voxels are removed from the analysis by making an 'extents' mask.
+   Basically, any voxel that does not have valid EPI data across all runs will
+   be zeroed out.
+
+   ---
+
+   Putting this all together makes for a long volreg block (in the advanced
+   script (see the resulting s12.proc.FT.align script).  The volreg block goes
+   through the following steps:
+
+        - make sure the anat+tlrc dataset exists
+        - create an all 1 EPI volume (for making the extents mask)
+        - run 3dvolreg, ignoring the output volumes, but storing the
+          output matrices (one per TR for registration to the base)
+        - use cat_matvec to catenate the transformation matrices
+            - they should be applied in the order:
+                 1. volreg transformation
+                 2. EPI -> anat transformation
+                 3. anat -> tlrc transformation
+        - use 3dAllineate to apply the complete transformation to the EPI
+          datasets
+            - output is now aligned with anat and in tlrc space
+            - default output grid is isotropic voxels the size of the
+              smallest EPI dimension, truncated to 3 significant bits
+        - use 3dAllineate to apply same transform to the all 1s volume,
+          with NN interpolation, making an EPI mask per TR
+        - use 3dTstat to make an intersection mask of the extents for 
+          this run
+ 
+   After each run is processed, finish with these last steps:
+ 
+        - catenate the dfiles across runs (done in simple case, too)
+        - intersect the per-run extents masks to make a final extents mask
+        - apply this mask to each transformed EPI run
+

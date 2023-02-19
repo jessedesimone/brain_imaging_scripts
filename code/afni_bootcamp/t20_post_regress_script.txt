@@ -1,0 +1,368 @@
+
+Processing block: post-regress
+
+Finish the single subject processing script, starting after 3dDeconvolve.
+
+Background:
+
+   The end of the proc.FT script includes the following steps.  Review them.
+
+        0. check for failure of 3dDeconvolve
+        1. check the X-matrix for correlation matrix warnings
+        2. create all_runs (though that has been mentioned)
+        3. create ideal regressors (has been mentioned), as well as a sum
+        4. estimate the blur in the data
+        5. use the blur and mask to enable correction for multiple comparisons
+        6. generate a script to quickly preview the EPI data
+        7. delete temporary files and return to parent directory
+        8. comment that shows afni_proc.py command
+
+===========================================================================
+
+0. check for failure of 3dDeconvolve
+
+   When programs are run from the shell they return a code that tells the shell
+   whether they were successful or had some error.  This value is stored in the
+   $status variable by the shell, so that the user can check it.  Generally, a
+   $status of 0 indicates success, while non-zero values may indicate different
+   sorts of errors.
+
+   The proc.FT script checks whether $status is 0 after 3dDeconvolve.  If it is
+   not, the script warns the user and terminates with an 'exit' command.
+
+   Note that if the user runs the proc script as recommended (tcsh -xef ...),
+   then the script will automatically terminate on any non-zero return value.
+
+------------------------------
+
+1. check the X-matrix for correlation matrix warnings
+
+   The proc.FT script:
+
+      1d_tool.py -show_cormat_warnings -infile X.xmat.1D \
+                        |& tee out.cormat_warn.txt
+
+   This 1d_tool.py command looks at the correlation matrix (normalized X'X,
+   the matrix of pairwise correlations between the regressors) and prints a
+   message about anything that looks large (starting at a correlation of 0.4,
+   by default).
+
+   Run the main command on the X.xmat.1D file in a terminal window.
+
+        % 1d_tool.py -show_cormat_warnings -infile X.xmat.1D
+
+   We see 4 warnings, 1 about our regressors of interest, and 3 of all of the
+   polort baseline pairs.
+
+   Note that fewer runs means higher correlation between constant polort terms.
+   With only 3 runs, the polort baseline terms have correlations of -0.5.  It
+   looks high, but just means they can predict each other to some degree.
+
+   If we had only 2 runs, the constant polort terms would have a correlation
+   of -1.0!  That seems awful, but in that case they are essentially just
+   negatives of each other (subject to setting the mean to 0).
+
+   To put it in different terms, given that the value is 0 in one baseline
+   regressor, what is the probability that it is 1 an another?  In the case of
+   3 runs, the answer is 0.5.  In the case of 2 runs the answer is 1.0.  This
+   happens to work out to be equal to the correlation values for any number of
+   runs (greater than 1, of course).  So anyway, they predict one another.
+
+   ---
+
+   What about our regressors of interest?  A correlation value of -0.612 seems
+   very high.  Indeed, it is, for the very same reason.  If one regressor is 1,
+   the other is probably 0; they help predict one another.  However there is
+   enough variance across time, and there are no additional regressors that
+   would lead towards multi-collinearity.
+
+   So the moral of the story is: think about these warnings, but do not panic.
+   A high correlation does not actually mean there is a problem (which is why
+   they are warnings and not errors).
+
+   ---
+
+   Recall the last part of the command: 
+
+        |& tee out.cormat_warn.txt
+
+   This is to 'pipe' all output (stdout and stderr) to the 'tee' program, which
+   sends the text:
+
+        1. back to the terminal, so we can see it as it runs
+        2. duplicated to a text file, so we can read it later, too
+
+   That is a good way to run scripts in general.  Text files are small.
+    
+------------------------------
+
+2. create all_runs (though that has been mentioned)
+
+   We talked about the all_runs dataset in t16 and t18, mostly.  Recall that
+   3dDeconvolve does not need the EPI data input as a single dataset (though
+   that works as well).  We gave 3dDeconvolve the list of scaled datasets as
+   input.
+
+   But to look at all of the runs, particularly along with the fitts data, it
+   is useful to have all of the runs in a single dataset.
+
+   From the proc.FT script:
+
+        3dTcat -prefix all_runs.$subj pb04.$subj.r??.scale+orig.HEAD
+
+   This just catenates the scaled datasets into one.
+
+------------------------------
+
+3. create ideal regressors (has been mentioned), as well as a sum
+
+   Again, this was mentioned in earlier pages.  Here we use 1dcat to extract
+   single regressors (of interest) from the X-matrix, output by 3dDeconvolve.
+
+   From the proc.FT script:
+
+        1dcat X.xmat.1D'[12]' > ideal_Vrel.1D
+        1dcat X.xmat.1D'[13]' > ideal_Arel.1D
+
+   Recall that there were 3 runs times 4 baseline regressors per run (cubic
+   polort), giving 12 baseline polort regressors in total.  So columns 0..11 of
+   the X-matrix are those polort regressors, and the next ones are as specified
+   in the 3dDeconvolve command.  We gave the regressors of interest next,
+   followed by the motion.  So regressors 12 and 13 are our ones of interest.
+
+   We looked at those in the afni Graph window, along with our EPI data, as
+   well as plotting them individually or as a pair.  For example:
+
+        % 1dplot X.xmat.1D'[12,13]'
+
+   or equivalently:
+
+        % 1dplot ideal_Vrel.1D ideal_Arel.1D
+
+   Recall that the first time series is plotted on the bottom.
+
+   Advanced:
+
+      In the case of censoring, afni_proc.py generates the ideal files from the
+      uncensored X-matrix (including all TRs), X.uncensored.xmat.1D.  This
+      matrix is also generated by 3dDeconvolve using the option:
+
+        -x1D_uncensored X.uncensored.xmat.1D
+
+      To see the censored regressors (what was actually used in the regression)
+      stick with X.xmat.1D.  Note that if any TRs are censored, X.xmat.1D will
+      be shorter than X.uncensored.xmat.1D (by that number of TRs).  The ideals
+      are generated from the uncensored data so that they still align with the
+      EPI data over time.  The censored regressors are essentially squeezed in
+      when TRs are deleted.  For example, if 10 TRs are censored early in the
+      time series, the rest of each regressor will be shifted left by 10 TRs,
+      relative to the all_runs dataset.  So it becomes less clear in matching
+      the stimulus events with the BOLD responses.
+
+------------------------------
+
+4. estimate the blur in the data
+
+   In this step blur_est.$subj.1D is created, containing blur estimates for
+   any time series that were asked for (in the afni_proc.py command).
+
+   The blur can be estimated from any of:
+
+        all_runs        - input to 3dDeconvolve
+        errts           - residuals output from 3dDeconvolve
+        errts_REML      - residuals output from 3dREMLfit (advanced)
+
+   It is most proper to estimate the blur from the residuals (either errts or
+   errts_REML, depending on what is being used).  Though in truth the numbers
+   tend to come out very close, so it is not so important.
+
+   The 3dFWHMx program is used to measure the blur one run at a time (over the
+   mask 'full_mask', though it may not have been applied to the EPI data).
+   The scripting looks a little messy, but mostly because it is not assumed
+   that all runs are of the same length.  It computes starting and ending
+   indexes for each run, and uses them to input the data to 3dFWHMx.
+
+   Blurs are averaged across the runs, with independent values for x, y and z.
+   These averages are put into the output file, blur_est.$subj.1D.  For this
+   script, the file contains just one line.  It might contain up to 3, as noted
+   above.
+
+        5.8063 5.99902 4.89269   # errts blur estimates
+
+   This script used 3dmerge to apply a 4 mm FWHM blur to the data, but we see
+   the blur estimates are easily higher than that.  It is because there is blur
+   right out of the scanner, as well as extra for any spatial interpolation of
+   the data.
+
+   These numbers are used when deciding on minimum cluster sizes for multiple
+   comparison corrections.  For single subject results (which we usually do not
+   care about) the script later runs 3dClustSim and adds the cluster table to
+   the stats dataset, output by 3dDeconvolve.
+
+   The more important use is to average these numbers across all subjects, and
+   then run 3dClustSim on the group mask.  That gives cluster sizes needed to
+   get the corrected p-values at the group level.
+
+------------------------------
+
+5. use the blur and mask to enable correction for multiple comparisons
+
+   Run 3dClustSim (with the blur estimates just mentioned above) to get some
+   approximate alpha values (corrected p-values) corresponding with cluster
+   sizes.  Note that 3dClustSim is just like AlphaSim, but it does the process
+   repeatedly (and more efficiently), getting results for many input p-values
+   (uncorrected p-values).
+
+   From the proc.FP script:
+
+        3dClustSim -both -NN 123 -mask full_mask.$subj+tlrc \
+                   -fwhmxyz $fxyz[1-3] -prefix ClustSim
+
+   Expanding the $subj and $fxyz variables shows the command as:
+
+        3dClustSim -both -NN 123 -mask full_mask.FT+orig    \
+                   -fwhmxyz 5.8063 5.99902 4.89269 -prefix ClustSim
+
+   Ignoring the options -both and -NN 123 for now, 3dClustSim creates a table
+   of cluster sizes (in voxels, or fractions there of).  Each row of the table
+   is for an uncorrected p-value (that one might use as a threshold in afni).
+   Each column is for a corrected p-value (that one might report on a paper
+   (of course both are probably reported)).
+
+   Look at the output text file ClustSim.NN1.1D (using cat, or some editor if
+   that is vastly preferred).
+
+        % cat ClustSim.NN1.1D
+
+   Again, the left column shows uncorrected p-values (pthr), while the column
+   headings show corrected p-values.  So each table entry is a cluster size
+   required to obtain such a corrected p-value.
+
+   For example, if we have an uncorrected p-value of 0.0001 (10^-4) and want to 
+   report clusters at a corrected p-value of 0.05, the clusters must be of size
+   5.4 voxels (round up to 6).  Look at the ClustSim output for the row with
+   uncorrected p of 0.0001 and move towards the right until the column with an
+   alpha heading of 0.050.  The value of 5.4 is the minimum cluster size
+   required for this corrected p, in voxels.
+
+   That means in the afni GUI we can set the threshold of the t-value of the
+   V-A contrast (for example, though it makes no difference) to 3.916.  This
+   t-value equates to p=1.0*10^4, as shown in the afni GUI.  The results are
+   now thresholded at an uncorrected p of 0.0001.
+
+   To threshold at a corrected p=0.05, we need to require clusters of minimum
+   size 6 voxels.  So Clusterize in the GUI, changing the minimum size from 20
+   down to 6, and click Set.  Now while each voxel is still at an uncorrected
+   p of 0.0001, the clusters are displayed at a corrected p of 0.05.
+
+   Then look at the Cluster Report (Rpt button under Clusterize).
+
+In the afni GUI:
+
+        - controller [A]: Clusterize (leave NN=1, set Voxels=6), and Set
+        - controller [A]: Rpt (under Clusterize)
+
+    The Cluster Results window shows 98 clusters (scroll all the way down) of
+    size at least 6.  Note the Alpha values in the right column of the report.
+    At the top the values are <<0.01 (<< means MUCH less than), then they go
+    to just < 0.01 at cluster 36 (size 15 voxels), then change to 0.02 at #70
+    (for clusters of size 7), and finally end up at 0.04 for the clusters of
+    size 6.
+
+    Note that the GUI basically applies one row of the ClustSim report table.
+    At an uncorrected p of 0.0001, given different cluster sizes, it can show
+    various corrected p-values, a different one for each different cluster size
+    (though limiting the results).
+
+    Note that no cluster below size 6 is shown, just because we decided on that
+    limit.  If we wanted to have a corrected p=0.01, that would mean a minimum
+    cluster size 8 (from 7.6 in the ClustSim table).  If we scroll up to #69
+    of the Cluster Report in the afni GUI, we see that clusters starting at
+    size 8 get an Alpha value of 0.01, as expected.
+
+    So if we had specified 8 voxels as a cluster minimum, the report would have
+    just shown those first 69 clusters, rather than the 98 that we got when
+    requiring only 6 voxels.  It would have merely been a truncated version.
+
+    If we required 20 voxels, we are literally "off the chart" with respect to
+    the ClustSim table.  The minimum corrected p-value in that table is 0.01.
+    We would have to ask 3dClustSim to report more strict Alpha values, if we
+    really cared for that.  But at 20 voxels in the GUI, we see there would
+    still be 32 clusters (starting at p=0.0001).
+
+  * Note, the single subject results are extremely significant, because:
+
+        a. The effects are strong (visual and audio stimuli, comparing to a
+           rest condition without them).
+        b. This is a block design, with 30 second stimuli.  The BOLD response
+           is very large in this case (5.5 times as large as it might be for a
+           similar but instantaneous stimulus).  The BOLD signal has saturated.
+        c. The df (degrees of freedom) come from the number TRs (minus the
+           number of regressors).  Here, df=430 (450 TRs minus 20 regressors).
+        d. At the group level, df comes from the number of subjects!  This is
+           generally far smaller than the number of TRs.  So at the same 
+           t-value, the p-value is generally much larger in a group result.
+
+------------------------------
+
+6. generate a script to quickly preview the EPI data
+
+   From the proc.FT script (squeezing the wildcard onto one line...):
+
+        gen_epi_review.py -script @epi_review.$subj -dsets pb00.*.tcat*.HEAD
+
+   The input to this gen_epi_review.py is just a list of EPI datasets.
+   The output from it is the file @epi_review.FT, which is a t-shell script.
+   
+   Briefly view the script with less or some editor.
+
+        % less @epi_review.FT
+
+   This script:
+
+        - makes a list of EPI datasets (the tcat output, unprocessed)
+        - starts afni
+            - opens an axial image, a sagittal image and a sagittal graph
+              (one point is to look for head motion, hence a sagittal image)
+        - sends a command to afni to view the first EPI dataset
+        - takes a brief nap
+        - has a loop over each dataset to:
+            - view the current run
+            - auto-scale the graph
+            - hit 'v' to to into video mode (scrolling over time)
+            ---> at this point, the user just watches the EPI data, looking
+                 for motion or other artifacts
+            ---> the user can hit <space> to stop the video mode
+            - the user is prompted (in the terminal window) to hit <enter>
+              to begin viewing the next run
+        - stop video mode when done (<space>)
+
+    The purpose is to provide an example of how to write automation scripts,
+    as well as show how to quickly look at single subject data.
+
+------------------------------
+
+7. delete temporary files and return to parent directory
+
+   Files name rm.SOMETHING are considered temporary, and are deleted here.
+
+   The 'cd ..' command to return to the parent directory is symmetric with
+   the 'cd $output_dir' command at the top of the script (the top on enters
+   the results directory, the bottom one exits it).  Returning to the parent
+   directory is useless for cases where the script is run via 'tcsh', but is
+   a good scripting practice and useful in more esoteric cases.
+
+------------------------------
+
+8. comment that shows afni_proc.py command
+
+   The script ends with commented lines showing the afni_proc.py command that
+   was used to create the script.  Note that the input datasets (such as
+   FT/FT_epi_r1+orig.HEAD) and timing files (such as FT/AV1_vis.txt) are
+   listed fully here, though they are as wildcards in the afni_proc.py command
+   in s01.ap.simple.
+
+   Recall that the shell expands the wildcards into filename lists, before the
+   called program is executed.  This is to say afni_proc.py does not see the
+   '*', it sees the list of files, as if the user had typed them all.
+
