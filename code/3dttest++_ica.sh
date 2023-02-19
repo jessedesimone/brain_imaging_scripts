@@ -1,6 +1,6 @@
-: 'two sample ttest using AFNI 3dttest++ on independent fmri components'
-
 #!/bin/bash
+: 'two sample ttest using AFNI 3dttest++ on independent fmri components
+will create and run ttest file for each independent component'
 
 # configure directories
 top=`pwd`
