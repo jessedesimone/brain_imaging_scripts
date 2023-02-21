@@ -1,0 +1,6 @@
+subj age bmi sex
+subj1 30 20 0
+subj2 18 24 1
+subj3 42 19 1
+subj4 21 28 0
+subj5 54 22 1
