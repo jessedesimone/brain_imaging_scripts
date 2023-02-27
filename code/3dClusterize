@@ -1,0 +1,2 @@
+#!/bin/bash
+3dClusterize -inset <infile> -ithr <sub-brick> -idat <sub-brick> -NN <NN> -clust_nvox <nvox> -2sided p=0.05 -pref_map ClusterMask.nii.gz -pref_dat ClusterEffEst.nii.gz -abs_table_data > ClusterReport.txt
