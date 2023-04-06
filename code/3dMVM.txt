@@ -1,0 +1,23 @@
+#3dMVM is a group-analysis program that performs traditional ANOVA- and ANCOVA-style computations.
+#see https://afni.nimh.nih.gov/MVM for documentation
+#create below script for desired computation
+#save below txt file as MVM.txt
+#to run, type  tcsh -x path/to/MVM.txt
+
+3dMVM   \
+-prefix ab4240_3grps.mvm    \
+-jobs 2 \
+-bsVars 'grp*age+sex+educ+apoe' \
+-qVars 'age,educ,apoe'  \
+-num_glt 3
+-gltLabel 1 lr-hr -gltCode 1 'grp : 1*lr -1*hr' \
+-gltLabel 2 lr-ad -gltCode 2 'grp : 1*lr -1*ad' \
+-gltLabel 3 hr-ad -gltCode 3 'grp : 1*hr -1*ad  \
+-dataTable  \
+Subj grp age sex educ apoe InputFile    \
+001 1 77 Male 14 0 <path/to/infile[+tlrc or .nii]>	\
+002 1 71 Male 12 0 <path/to/infile[+tlrc or .nii]>	\
+003 2 79 Female 8 0 <path/to/infile[+tlrc or .nii]>	\
+004 2 81 Female 20 1 <path/to/infile[+tlrc or .nii]>	\
+005 3 67 Female 15 0 <path/to/infile[+tlrc or .nii]>	\
+006 3 70 Male 16 2 <path/to/infile[+tlrc or .nii]>	\
