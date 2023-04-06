@@ -15,9 +15,9 @@
 -gltLabel 3 hr-ad -gltCode 3 'grp : 1*hr -1*ad  \
 -dataTable  \
 Subj grp age sex educ apoe InputFile    \
-001 1 77 Male 14 0 <path/to/infile[+tlrc or .nii]>	\
-002 1 71 Male 12 0 <path/to/infile[+tlrc or .nii]>	\
-003 2 79 Female 8 0 <path/to/infile[+tlrc or .nii]>	\
-004 2 81 Female 20 1 <path/to/infile[+tlrc or .nii]>	\
-005 3 67 Female 15 0 <path/to/infile[+tlrc or .nii]>	\
-006 3 70 Male 16 2 <path/to/infile[+tlrc or .nii]>	\
+001 lr 77 Male 14 0 <path/to/infile[+tlrc or .nii]>	\
+002 ad 71 Male 12 0 <path/to/infile[+tlrc or .nii]>	\
+003 hr 79 Female 8 0 <path/to/infile[+tlrc or .nii]>	\
+004 hr 81 Female 20 1 <path/to/infile[+tlrc or .nii]>	\
+005 lr 67 Female 15 0 <path/to/infile[+tlrc or .nii]>	\
+006 ad 70 Male 16 2 <path/to/infile[+tlrc or .nii]>	\
