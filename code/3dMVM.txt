@@ -4,20 +4,30 @@
 #save below txt file as MVM.txt
 #to run, type  tcsh -x path/to/MVM.txt
 
-3dMVM   \
--prefix ab4240_3grps.mvm    \
--jobs 2 \
--bsVars 'grp*age+sex+educ+apoe' \
--qVars 'age,educ,apoe'  \
--num_glt 3
--gltLabel 1 lr-hr -gltCode 1 'grp : 1*lr -1*hr' \
--gltLabel 2 lr-ad -gltCode 2 'grp : 1*lr -1*ad' \
--gltLabel 3 hr-ad -gltCode 3 'grp : 1*hr -1*ad  \
+#One-way ANOVA 3 groups
+3dMVM \
+-prefix /path/to/outfile -jobs 2 \
+-bsVars "grp*age+sex+educ+apoe" \
+-qVars "age,educ,apoe"  \
+-mask 'path/to/mask.nii.gz'  \
+-resid /path/to/residuals/output    \
+-num_glt 3  \
+-gltLabel 1 lr_hr -gltCode 1 'grp : 1*lr -1*hr' \
+-gltLabel 2 lr_ad -gltCode 2 'grp : 1*lr -1*ad' \
+-gltLabel 3 hr_ad -gltCode 3 'grp : 1*hr -1*ad'  \
 -dataTable  \
-Subj grp age sex educ apoe InputFile    \
-001 lr 77 Male 14 0 <path/to/infile[+tlrc or .nii]>	\
-002 ad 71 Male 12 0 <path/to/infile[+tlrc or .nii]>	\
-003 hr 79 Female 8 0 <path/to/infile[+tlrc or .nii]>	\
-004 hr 81 Female 20 1 <path/to/infile[+tlrc or .nii]>	\
-005 lr 67 Female 15 0 <path/to/infile[+tlrc or .nii]>	\
-006 ad 70 Male 16 2 <path/to/infile[+tlrc or .nii]>	\
+Subj	grp	age	sex	educ	apoe	InputFile	\
+01	lr	77	Female	14	0	'<path/to/infile[+tlrc or .nii]>' \
+02	lr	77	Female	12	0	'<path/to/infile[+tlrc or .nii]>' \
+03	lr	74	Male	18	0	'<path/to/infile[+tlrc or .nii]>' \
+04	lr	69	Female	8	0	'<path/to/infile[+tlrc or .nii]>' \
+05	ad	76	Female	9	1	'<path/to/infile[+tlrc or .nii]>' \
+06	hr	80	Male	18	0	'<path/to/infile[+tlrc or .nii]>' \
+07	ad	81	Male	13	1	'<path/to/infile[+tlrc or .nii]>' \
+08	ad	80	Female	12	1	'<path/to/infile[+tlrc or .nii]>' \
+09	lr	66	Female	12	0	'<path/to/infile[+tlrc or .nii]>' \
+
+
+#cluster-level threshold correction
+3dFWHMx -acf -mask /path/to/mask/file /path/to/residuals/file
+3dClustSim -mask /path/to/mask/file -acf acf1 acf2 acf3 -athr {athr} -pthr {pthr} -prefix path/to/outfile
