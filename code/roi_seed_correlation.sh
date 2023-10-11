@@ -42,6 +42,7 @@ else
 		# create 1D file of average ROI time-series
 		if [ ! -f ${roi_dir}/${roi}.1D ]; then
 			3dROIstats -quiet -mask_f2short -mask ${roi_dir}/${seed}_r.nii $infile > ${roi_dir}/${roi}.1D
+			#3dmaskave -mask -mask ${roi_dir}/${seed}_r.nii $infile > ${roi_dir}/${roi}.1D 
 		fi
 
 		# create pearson correlation map
